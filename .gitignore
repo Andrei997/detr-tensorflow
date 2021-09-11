@@ -130,3 +130,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# DATA
+data/
+data.zip
+
+# DS_store
+.DS_Store
+*/.DS_Store

@@ -1,6 +1,5 @@
-""" Example on how to train on COCO from scratch
+""" Example on how to train on OXFORD from scratch
 """
-
 
 import argparse
 import matplotlib.pyplot as plt
@@ -9,26 +8,21 @@ import numpy as np
 import time
 import os
 
-from detr_tf.data.coco import load_coco_dataset
 from detr_tf.networks.detr import get_detr_model
+from detr_tf.data.oxford import load_oxford_dataset
 from detr_tf.optimizers import setup_optimizers
 from detr_tf.optimizers import gather_gradient, aggregate_grad_and_apply
-from detr_tf.logger.training_logging import train_log, valid_log
+# from detr_tf.logger.training_logging import train_log, valid_log
 from detr_tf.loss.loss import get_losses
 from detr_tf.inference import numpy_bbox_to_image
 from detr_tf.training_config import TrainingConfig, training_config_parser
 from detr_tf import training
 
-try:
-    # Should be optional if --log is not set
-    import wandb
-except:
-    wandb = None
-
 
 import time
 
 
+# TODO: re-implement get_detr_model ? 
 def build_model(config):
     """ Build the model with the pretrained weights. In this example
     we do not add new layers since the pretrained model is already trained on coco.
@@ -41,16 +35,24 @@ def build_model(config):
     return detr
 
 
-def run_finetuning(config):
+def run_training(config):
 
     # Load the model with the new layers to finetune
     detr = build_model(config)
+    
+    print(config)
 
     # Load the training and validation dataset
-    train_dt, coco_class_names = load_coco_dataset(
-        config, config.batch_size, augmentation=True, img_dir="train2017", ann_fil="annotations/instances_train2017.json")
-    valid_dt, _ = load_coco_dataset(
-        config, 1, augmentation=False, img_dir="val2017", ann_fil="annotations/instances_val2017.json")
+    # TODO: replace these with local paths
+    train_dt, oxford_class_names = load_oxford_dataset(config,
+                                                       "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/annotations.xml", 
+                                                       "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/annotations_local.csv",
+                                                       "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/annotations/xmls",
+                                                       "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/images",
+                                                       batch_size = config.batch_size)
+    
+    # TODO: setup validation dataset later on ...
+    # valid_dt, _ = load_oxford_dataset(config, 1, augmentation=False, img_dir="val2017", ann_fil="annotations/instances_val2017.json")
 
     # Train the backbone and the transformers
     # Check the training_config file for the other hyperparameters
@@ -58,12 +60,14 @@ def run_finetuning(config):
     config.train_transformers = True
 
     # Setup the optimziers and the trainable variables
+    # TODO: check if optimizers are used for the keypoints dense layer
     optimzers = setup_optimizers(detr, config)
 
     # Run the training for 100 epochs
+    # TODO: enable eval
     for epoch_nb in range(100):
-        training.eval(detr, valid_dt, config, coco_class_names, evaluation_step=200)
-        training.fit(detr, train_dt, optimzers, config, epoch_nb, coco_class_names)
+        # training.eval(detr, valid_dt, config, coco_class_names, evaluation_step=200)
+        training.fit(detr, train_dt, optimzers, config, epoch_nb, oxford_class_names)
 
 
 if __name__ == "__main__":
@@ -76,11 +80,8 @@ if __name__ == "__main__":
     args = training_config_parser().parse_args()
     config.update_from_args(args)
 
-    if config.log:
-        wandb.init(project="detr-tensorflow", reinit=True)
-        
     # Run training
-    run_finetuning(config)
+    run_training(config)
 
 
 

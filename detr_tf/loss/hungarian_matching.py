@@ -176,9 +176,9 @@ def hungarian_matching(t_bbox, t_class, p_bbox, p_class, fcost_class=1, fcost_bb
 
     # Classification cost for the Hungarian algorithom 
     # On each prediction. We select the prob of the expected class
-    cost_class = -tf.gather(softmax, t_class, axis=1)
+    cost_class = - tf.gather(softmax, t_class, axis=1)
 
-    # L1 cost for the hungarian algorithm
+    # L1 cost for the hungarian algorithms
     _p_bbox, _t_bbox = bbox.merge(p_bbox, t_bbox)
     cost_bbox = tf.norm(_p_bbox - _t_bbox, ord=1, axis=-1)
 
@@ -189,7 +189,7 @@ def hungarian_matching(t_bbox, t_class, p_bbox, p_class, fcost_class=1, fcost_bb
     bottom_right =  tf.math.maximum(_p_bbox_xy[:,:,2:], _t_bbox_xy[:,:,2:])
     size = tf.nn.relu(bottom_right - top_left)
     area = size[:,:,0] * size[:,:,1]
-    cost_giou = -(iou - (area - union) / area)
+    cost_giou = - (iou - (area - union) / area)
 
     # Final hungarian cost matrix
     cost_matrix = fcost_bbox * cost_bbox + fcost_class * cost_class + fcost_giou * cost_giou
@@ -200,4 +200,4 @@ def hungarian_matching(t_bbox, t_class, p_bbox, p_class, fcost_class=1, fcost_bb
     target_selector = selectors[2]
     pred_selector = selectors[3]
 
-    return pred_indices, target_indices, pred_selector, target_selector, t_bbox, t_class
+    return pred_indices, target_indices, pred_selector, target_selector

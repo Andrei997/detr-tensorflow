@@ -1,15 +1,11 @@
 """
     This file is used to define all the function related to the manipulation
-    and comparaison of bbox
+    and comparison of bbox
 """
 
-from typing import Union,Dict,Tuple
-import matplotlib.pyplot as plt
+from typing import Tuple
 import tensorflow as tf
 import numpy as np
-import random
-import cv2
-
 
 def bbox_xcycwh_to_x1y1x2y2(bbox_xcycwh: np.array):
     """
@@ -106,7 +102,7 @@ def jaccard(box_a: tf.Tensor, box_b: tf.Tensor, return_union=False) -> tf.Tensor
 
 def merge(box_a: tf.Tensor, box_b: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
     """
-    Merged two set of boxes so that operations ca be run to compare them
+    Merged two set of boxes so that operations can be run to compare them
     Args:
         box_a: A (tf.Tensor) list a bbox (a, 4) with a the number of bbox
         box_b: A (tf.Tensor) list a bbox (b, 4) with b the number of bbox

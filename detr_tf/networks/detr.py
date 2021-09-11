@@ -1,35 +1,27 @@
-import pickle
 import tensorflow as tf
-import numpy as np
-import time
-import cv2
-import matplotlib.pyplot as plt
-import os
-from pathlib import Path
 
 
 from .resnet_backbone import ResNet50Backbone
 from .custom_layers import Linear, FixedEmbedding
 from .position_embeddings import PositionEmbeddingSine
 from .transformer import Transformer
-from .. bbox import xcycwh_to_xy_min_xy_max
-from .weights import load_weights
 
 
 class DETR(tf.keras.Model):
-    def __init__(self, num_classes=92, num_queries=100,
-                 backbone=None,
-                 pos_encoder=None,
-                 transformer=None,
+    def __init__(self,
+                 num_classes=92, 
+                 num_keypoints=5,
+                 num_queries=100,
                  num_encoder_layers=6,
                  num_decoder_layers=6,
                  return_intermediate_dec=True,
                  **kwargs):
+        
         super().__init__(**kwargs)
         self.num_queries = num_queries
 
         self.backbone = ResNet50Backbone(name='backbone')
-        self.transformer = transformer or Transformer(
+        self.transformer = Transformer(
                 num_encoder_layers=num_encoder_layers,
                 num_decoder_layers=num_decoder_layers,
                 return_intermediate_dec=return_intermediate_dec,
@@ -38,7 +30,7 @@ class DETR(tf.keras.Model):
         
         self.model_dim = self.transformer.model_dim
 
-        self.pos_encoder = pos_encoder or PositionEmbeddingSine(
+        self.pos_encoder = PositionEmbeddingSine(
             num_pos_features=self.model_dim // 2, normalize=True, name="position_embedding_sine")
 
         self.input_proj = tf.keras.layers.Conv2D(self.model_dim, kernel_size=1, name='input_proj')
@@ -51,6 +43,9 @@ class DETR(tf.keras.Model):
         self.bbox_embed_linear1 = Linear(self.model_dim, name='bbox_embed_0')
         self.bbox_embed_linear2 = Linear(self.model_dim, name='bbox_embed_1')
         self.bbox_embed_linear3 = Linear(4, name='bbox_embed_2')
+        
+        self.kpts_embed = Linear(num_keypoints * 2, name='kpts_embed')
+        
         self.activation = tf.keras.layers.ReLU(name='re_lu')
 
 
@@ -61,6 +56,7 @@ class DETR(tf.keras.Model):
         masks = tf.squeeze(masks, -1)
         masks = tf.cast(masks, tf.bool)
         return masks
+
 
     def call(self, inp, training=False, post_process=False):
         x, masks = inp
@@ -77,9 +73,12 @@ class DETR(tf.keras.Model):
         box_ftmps = self.activation(self.bbox_embed_linear1(hs))
         box_ftmps = self.activation(self.bbox_embed_linear2(box_ftmps))
         outputs_coord = tf.sigmoid(self.bbox_embed_linear3(box_ftmps))
+        
+        keypoints_coord = tf.sigmoid(self.kpts_embed(hs))
 
         output = {'pred_logits': outputs_class[-1],
-                  'pred_boxes': outputs_coord[-1]}
+                  'pred_boxes': outputs_coord[-1],
+                  'pred_keypoints': keypoints_coord[-1]}
 
         if post_process:
             output = self.post_process(output)
@@ -90,32 +89,10 @@ class DETR(tf.keras.Model):
         if input_shape is None:
             input_shape = [(None, None, None, 3), (None, None, None)]
         super().build(input_shape, **kwargs)
-
-def add_heads_nlayers(config, detr, nb_class):
-    image_input = tf.keras.Input((None, None, 3))
-    # Setup the new layers
-    cls_layer = tf.keras.layers.Dense(nb_class, name="cls_layer")
-    pos_layer = tf.keras.models.Sequential([
-        tf.keras.layers.Dense(256, activation="relu"),
-        tf.keras.layers.Dense(256, activation="relu"),
-        tf.keras.layers.Dense(4, activation="sigmoid"),
-    ], name="pos_layer")
-    config.add_nlayers([cls_layer, pos_layer])
-
-    transformer_output = detr(image_input)
-    cls_preds = cls_layer(transformer_output)
-    pos_preds = pos_layer(transformer_output)
-
-    # Define the main outputs along with the auxialiary loss
-    outputs = {'pred_logits': cls_preds[-1], 'pred_boxes': pos_preds[-1]}
-    outputs["aux"] = [ {"pred_logits": cls_preds[i], "pred_boxes": pos_preds[i]} for i in range(0, 5)]
-
-    n_detr = tf.keras.Model(image_input, outputs, name="detr_finetuning")
-    return n_detr
-
+        
+        
 def get_detr_model(config, include_top=False, nb_class=None, weights=None, tf_backbone=False, num_decoder_layers=6, num_encoder_layers=6):
     """ Get the DETR model
-
     Parameters
     ----------
     include_top: bool
@@ -133,10 +110,10 @@ def get_detr_model(config, include_top=False, nb_class=None, weights=None, tf_ba
         tf.keras.application to load the weight. If you do want to load the tf backbone, and not
         laod the weights from pytorch, set this variable to True.
     """
-    detr = DETR(num_decoder_layers=num_decoder_layers, num_encoder_layers=num_encoder_layers)
+    detr = DETR(num_decoder_layers=num_decoder_layers, num_encoder_layers=num_encoder_layers, num_classes=2)
 
-    if weights is not None:
-        load_weights(detr, weights)
+    # if weights is not None:
+    #     load_weights(detr, weights)
 
     image_input = tf.keras.Input((None, None, 3))
 
@@ -165,6 +142,11 @@ def get_detr_model(config, include_top=False, nb_class=None, weights=None, tf_ba
     bbox_embed_linear1 = detr.get_layer('bbox_embed_0')
     bbox_embed_linear2 = detr.get_layer('bbox_embed_1')
     bbox_embed_linear3 = detr.get_layer('bbox_embed_2')
+    
+    # Predict keypoints
+    kpts_embed = detr.get_layer('kpts_embed')
+    
+    # Activation
     activation = detr.get_layer("re_lu")
 
     x = backbone(image_input)
@@ -175,10 +157,6 @@ def get_detr_model(config, include_top=False, nb_class=None, weights=None, tf_ba
     hs = transformer(input_proj(x), masks, query_embed(None), pos_encoding)[0]
 
     detr = tf.keras.Model(image_input, hs, name="detr")
-    if include_top is False and nb_class is None:
-        return detr
-    elif include_top is False and nb_class is not None:
-        return add_heads_nlayers(config, detr, nb_class) 
 
     transformer_output = detr(image_input)
 
@@ -186,20 +164,23 @@ def get_detr_model(config, include_top=False, nb_class=None, weights=None, tf_ba
     box_ftmps = activation(bbox_embed_linear1(transformer_output))
     box_ftmps = activation(bbox_embed_linear2(box_ftmps))
     outputs_coord = tf.sigmoid(bbox_embed_linear3(box_ftmps))
+    keypoints_coord = tf.sigmoid(kpts_embed(transformer_output))
 
     outputs = {}
 
     output = {'pred_logits': outputs_class[-1],
-                'pred_boxes': outputs_coord[-1]}
+              'pred_boxes': outputs_coord[-1],
+              'pred_keypoints': keypoints_coord[-1]}
 
     output["aux"] = []
     for i in range(0, num_decoder_layers - 1):
         out_class = outputs_class[i]
         pred_boxes = outputs_coord[i]
+        pred_keypoints = keypoints_coord[i]
         output["aux"].append({
             "pred_logits": out_class,
-            "pred_boxes": pred_boxes
+            "pred_boxes": pred_boxes,
+            "pred_keypoints": pred_keypoints,
         })
 
     return tf.keras.Model(image_input, output, name="detr_finetuning")
-

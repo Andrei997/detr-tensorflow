@@ -1,13 +1,13 @@
 import tensorflow as tf
 
 from .optimizers import gather_gradient, aggregate_grad_and_apply
-from .logger.training_logging import valid_log, train_log
+# from .logger.training_logging import valid_log, train_log
 from .loss.loss import get_losses
 import time
-import wandb
+# import wandb
 
 @tf.function
-def run_train_step(model, images, t_bbox, t_class, optimizers, config):
+def run_train_step(model, images, t_class, t_bbox, t_kpts, optimizers, config):
 
     if config.target_batch is not None:
         gradient_aggregate = int(config.target_batch // config.batch_size)
@@ -16,10 +16,12 @@ def run_train_step(model, images, t_bbox, t_class, optimizers, config):
 
     with tf.GradientTape() as tape:
         m_outputs = model(images, training=True)
-        total_loss, log = get_losses(m_outputs, t_bbox, t_class, config)
+        # TODO: check loss ... 
+        total_loss, log = get_losses(m_outputs, t_class, t_bbox, t_kpts, config)
         total_loss = total_loss / gradient_aggregate
 
     # Compute gradient for each part of the network
+    # TODO: check this gradient stuff
     gradient_steps = gather_gradient(model, optimizers, total_loss, tape, config, log)
 
     return m_outputs, total_loss, log, gradient_steps
@@ -39,15 +41,17 @@ def fit(model, train_dt, optimizers, config, epoch_nb, class_names):
     gradient_aggregate = None
     if config.target_batch is not None:
         gradient_aggregate = int(config.target_batch // config.batch_size)
+        
     t = None
-    for epoch_step , (images, t_bbox, t_class) in enumerate(train_dt):
+    for epoch_step , (images, t_class, t_bbox, t_kpts) in enumerate(train_dt):
 
         # Run the prediction and retrieve the gradient step for each part of the network
-        m_outputs, total_loss, log, gradient_steps = run_train_step(model, images, t_bbox, t_class, optimizers, config)
+        m_outputs, total_loss, log, gradient_steps = run_train_step(model, images, t_class, t_bbox, t_kpts, optimizers, config)
         
+        # TODO: re-enable this
         # Load the predictions
-        if config.log:
-            train_log(images, t_bbox, t_class, m_outputs, config, config.global_step,  class_names, prefix="train/")
+        # if config.log:
+        #     train_log(images, t_bbox, t_class, m_outputs, config, config.global_step,  class_names, prefix="train/")
         
         # Aggregate and apply the gradient
         for name in gradient_steps:
@@ -58,8 +62,8 @@ def fit(model, train_dt, optimizers, config, epoch_nb, class_names):
             t = t if t is not None else time.time()
             elapsed = time.time() - t
             print(f"Epoch: [{epoch_nb}], \t Step: [{epoch_step}], \t ce: [{log['label_cost']:.2f}] \t giou : [{log['giou_loss']:.2f}] \t l1 : [{log['l1_loss']:.2f}] \t time : [{elapsed:.2f}]")
-            if config.log:
-                wandb.log({f"train/{k}":log[k] for k in log}, step=config.global_step)
+            # if config.log:
+            #     wandb.log({f"train/{k}":log[k] for k in log}, step=config.global_step)
             t = time.time()
         
         config.global_step += 1
