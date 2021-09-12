@@ -138,3 +138,6 @@ data.zip
 # DS_store
 .DS_Store
 */.DS_Store
+
+# Load oxford 
+!detr_tf/data
