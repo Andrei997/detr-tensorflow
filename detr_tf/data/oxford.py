@@ -130,8 +130,8 @@ def load_image(image_name, annotations=None, images_path=None, config=None):
         kpts.append(k_y)
 
     image = cv2.resize(image, (512, 512))
-    image = processing.normalized_images(image, config)
-    image = image.astype(np.float32)
+    image = tf.image.per_image_standardization(image)
+    # image = image.astype(np.float32)
 
     return (
         image,

@@ -11,10 +11,6 @@ import os
 from detr_tf.networks.detr import get_detr_model
 from detr_tf.data.oxford import load_oxford_dataset
 from detr_tf.optimizers import setup_optimizers
-from detr_tf.optimizers import gather_gradient, aggregate_grad_and_apply
-# from detr_tf.logger.training_logging import train_log, valid_log
-from detr_tf.loss.loss import get_losses
-from detr_tf.inference import numpy_bbox_to_image
 from detr_tf.training_config import TrainingConfig, training_config_parser
 from detr_tf import training
 
@@ -39,8 +35,6 @@ def run_training(config):
 
     # Load the model with the new layers to finetune
     detr = build_model(config)
-    
-    print(config)
 
     # Load the training and validation dataset
     # TODO: replace these with local paths
@@ -48,8 +42,7 @@ def run_training(config):
                                                        "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/annotations.xml", 
                                                        "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/annotations_local.csv",
                                                        "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/annotations/xmls",
-                                                       "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/images",
-                                                       batch_size = config.batch_size)
+                                                       "/Users/andreiungureanu/Documents/GitHub/detr-tensorflow/data/oxford/images")
     
     # TODO: setup validation dataset later on ...
     # valid_dt, _ = load_oxford_dataset(config, 1, augmentation=False, img_dir="val2017", ann_fil="annotations/instances_val2017.json")

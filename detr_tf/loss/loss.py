@@ -23,10 +23,10 @@ def get_losses(m_outputs, t_class, t_bbox, t_kpts, config):
     losses = get_detr_losses(m_outputs, t_class, t_bbox, t_kpts, config)
 
     # Get auxiliary loss for each auxiliary output
-    # if "aux" in m_outputs:
-    #     for a, aux_m_outputs in enumerate(m_outputs["aux"]):
-    #         aux_losses = get_detr_losses(aux_m_outputs, t_bbox, t_class, config, suffix="_{}".format(a))
-    #         losses.update(aux_losses)
+    if "aux" in m_outputs:
+        for a, aux_m_outputs in enumerate(m_outputs["aux"]):
+            aux_losses = get_detr_losses(aux_m_outputs, t_class, t_bbox, t_kpts, config, suffix="_{}".format(a))
+            losses.update(aux_losses)
     
     # Compute the total loss
     # TODO: check total loss / add keypoints
@@ -40,7 +40,6 @@ def loss_labels(p_class, t_class, t_indices, p_indices, t_selector, p_selector, 
     neg_indices = tf.squeeze(tf.where(p_selector == False), axis=-1)
     neg_p_class = tf.gather(p_class, neg_indices)
     neg_t_class = tf.zeros((tf.shape(neg_p_class)[0]), tf.int64) + background_class
-    print(neg_t_class)
     
     neg_weights = tf.zeros((tf.shape(neg_indices)[0],)) + 0.1
     pos_weights = tf.zeros((tf.shape(t_indices)[0],)) + 1.0
@@ -49,7 +48,6 @@ def loss_labels(p_class, t_class, t_indices, p_indices, t_selector, p_selector, 
     pos_p_class = tf.gather(p_class, p_indices)
     pos_t_class = tf.gather(t_class, t_indices)
     pos_t_class = tf.squeeze(pos_t_class, axis=-1)
-    print(t_class)
 
     #############
     # Metrics
@@ -113,12 +111,8 @@ def loss_keypoints(p_kpts, t_kpts, t_indices, p_indices, t_selector, p_selector)
 
 # TODO: add keypoints loss here
 def get_detr_losses(m_outputs, target_label, target_bbox, target_kpts, config, suffix=""):
-    
-    print(target_label)
-    print(target_bbox)
 
     predicted_bbox = m_outputs["pred_boxes"]
-    print(predicted_bbox)
     predicted_label = m_outputs["pred_logits"]
     predicted_keypoints = m_outputs["pred_keypoints"]
 
@@ -165,8 +159,6 @@ def get_detr_losses(m_outputs, target_label, target_bbox, target_kpts, config, s
 
         t_offset += tf.shape(t_bbox)[0]
         p_offset += tf.shape(p_bbox)[0]
-
-    print("_______")
     
     all_target_bbox = tf.concat(all_target_bbox, axis=0)
     all_target_class = tf.concat(all_target_class, axis=0)
@@ -178,9 +170,6 @@ def get_detr_losses(m_outputs, target_label, target_bbox, target_kpts, config, s
     all_predcted_indices = tf.concat(all_predcted_indices, axis=0)
     all_target_selector = tf.concat(all_target_selector, axis=0)
     all_predcted_selector = tf.concat(all_predcted_selector, axis=0)
-    
-    print(all_predicted_class)
-    print(all_target_class)
 
     label_cost, true_neg, true_pos, pos_accuracy = loss_labels(
         all_predicted_class,
@@ -191,8 +180,6 @@ def get_detr_losses(m_outputs, target_label, target_bbox, target_kpts, config, s
         all_predcted_selector,
         background_class=config.background_class,
     )
-
-    print("finished label loss")
 
     giou_loss, l1_loss = loss_boxes(
         all_predicted_bbox,
@@ -217,6 +204,7 @@ def get_detr_losses(m_outputs, target_label, target_bbox, target_kpts, config, s
     l1_loss = l1_loss
     kpts_loss = kpts_loss
 
+    # appearently L1 loss is always zero ?? 
     return {
         "label_cost{}".format(suffix): label_cost,
         "true_neg{}".format(suffix): true_neg,

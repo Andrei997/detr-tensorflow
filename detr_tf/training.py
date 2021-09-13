@@ -61,7 +61,7 @@ def fit(model, train_dt, optimizers, config, epoch_nb, class_names):
         if epoch_step % 100 == 0:
             t = t if t is not None else time.time()
             elapsed = time.time() - t
-            print(f"Epoch: [{epoch_nb}], \t Step: [{epoch_step}], \t ce: [{log['label_cost']:.2f}] \t giou : [{log['giou_loss']:.2f}] \t l1 : [{log['l1_loss']:.2f}] \t time : [{elapsed:.2f}]")
+            print(f"Epoch: [{epoch_nb}], \t Step: [{epoch_step}], \t ce: [{log['label_cost']:.2f}] \t giou : [{log['giou_loss']:.2f}] \t l1 : [{log['l1_loss']:.2f}] \t kpts : [{log['kpts_loss']:.2f}] \t time : [{elapsed:.2f}]")
             # if config.log:
             #     wandb.log({f"train/{k}":log[k] for k in log}, step=config.global_step)
             t = time.time()

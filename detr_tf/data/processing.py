@@ -9,18 +9,8 @@ def normalized_images(image, config):
     from pytorch. tf_resnet is used when training from scratch with a
     resnet50 traine don tensorflow.
     """
-    if config.normalized_method == "torch_resnet":
-        channel_avg = np.array([0.485, 0.456, 0.406])
-        channel_std = np.array([0.229, 0.224, 0.225])
-        image = (image / 255.0 - channel_avg) / channel_std
-        return image.astype(np.float32)
-    elif config.normalized_method == "tf_resnet":
-        mean = [103.939, 116.779, 123.68]
-        image = image[..., ::-1]
-        image = image - mean
-        return image.astype(np.float32)
-    else:
-        raise Exception("Can't handler this normalized method")
+    image = tf.image.per_image_standardization(image)
+    return image
 
 
 def numpy_fc(idx, fc, outputs_types, **params):
