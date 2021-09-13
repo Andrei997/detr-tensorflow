@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.core.arrayprint import printoptions
 import tensorflow as tf
 import imageio
 import cv2
@@ -110,6 +111,9 @@ def load_image(image_name, annotations=None, images_path=None, config=None):
     full_image_path = os.path.join(images_path, image_path)
     image = imageio.imread(full_image_path)
 
+    if image.ndim == 2:
+        image = cv2.merge((image, image, image))
+
     x1, y1, x2, y2 = bbox
     width, height = x2 - x1, y2 - y1
 
@@ -141,13 +145,8 @@ def load_image(image_name, annotations=None, images_path=None, config=None):
     )
 
 
-def load_oxford_dataset(
-    config,
-    xml_annotation_path,
-    csv_annotation_path,
-    oxford_annotations_path,
-    oxford_images_path,
-):
+def load_oxford_dataset(config):
+
     max_id = 0
     class_names = ["N/A"] * (max_id + 2)
     class_names[0] = "pet"
@@ -156,7 +155,9 @@ def load_oxford_dataset(
 
     # load all images from dir
     all_annotations = get_annotations_CVAT(
-        xml_annotation_path, csv_annotation_path, oxford_annotations_path
+        config.xml_annotation_path,
+        config.csv_annotation_path,
+        config.oxford_annotations_path,
     )
 
     # create dataset from image dirs
@@ -171,8 +172,8 @@ def load_oxford_dataset(
             load_image,
             outputs_types,
             annotations=all_annotations,
-            images_path=oxford_images_path,
-            config=config
+            images_path=config.oxford_images_path,
+            config=config,
         ),
         num_parallel_calls=tf.data.experimental.AUTOTUNE,
     )
